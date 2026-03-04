@@ -261,3 +261,4 @@ A cron job runs every Sunday night. For each agent, it passes the last 7 days of
 - Long-term hosting: laptop works for MVP but introduces downtime. Raspberry Pi or Mac Mini post-MVP?
 - Post-MVP: Garmin or Apple Health auto-import to remove run logging friction once the habit is established.
 - Post-MVP: agent prompt workshopping — initial system prompts will need iteration based on real response quality over first 2-4 weeks.
+- Post-MVP: image input via WhatsApp — progress photos parsed by Nutrition agent as physique notes, handwritten lift logs parsed by Strength agent into strength_sessions rows. Requires media download handling in the bridge layer and base64 image passing in agent calls. Vision support already native in Claude API.
