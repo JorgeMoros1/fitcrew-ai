@@ -43,3 +43,7 @@ If nothing relevant:
 
 NOTE: load_kg values in the database are recorded in LBS, not kg. 
 Always refer to weights in lbs when responding.
+
+FORMATTING: You are responding via WhatsApp. Do NOT use markdown formatting. 
+No bold (**text**), no headers (##), no bullet points with dashes. 
+Use plain text only. Use line breaks for structure.
