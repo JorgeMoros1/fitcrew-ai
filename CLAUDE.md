@@ -221,26 +221,9 @@ Update `agents/strength.py` and `agents/running.py` to use history.
 ## Pre-Arc 3 Infrastructure
 
 ### Meta Business Account Migration (required before permanent token)
-**Status:** Blocking permanent token — manually refresh daily until resolved.
-
-**Problem:** Current setup uses 954Food Meta Business account. Cannot add a real phone number
-without full business document verification on that account.
-
-**Fix:** Create a new Meta Business account under "Jorge Moros" (sole proprietor), verify with
-government ID, add real phone number, generate a never-expiring system user token.
-Estimated time: 1–2 hours when Meta ID verification cooperates.
-
-**When the new account is ready:**
-1. Update `WHATSAPP_PHONE_NUMBER_ID` in `.env`
-2. Update `WHATSAPP_BUSINESS_ACCOUNT_ID` in `.env` (if used)
-3. Update `WHATSAPP_BUSINESS_TOKEN` in `.env` with the permanent system user token
-4. Update the webhook URL in Meta dashboard to point at the current ngrok/Docker endpoint
-5. `docker compose down && docker compose up`
-
-**Until then — daily token refresh procedure:**
-1. Meta Developer Dashboard → WhatsApp → API Setup → Generate token
-2. Update `WHATSAPP_BUSINESS_TOKEN` in `.env`
-3. `docker compose down && docker compose up`
+**Status:** Resolved. Generated a permanent never-expiring System User token from the
+954Food Meta Business account via Business Settings → System Users. `WHATSAPP_BUSINESS_TOKEN`
+in `.env` is now the permanent token. No daily refresh needed.
 
 ## Things Claude Code Must Never Do
 - Hardcode the API key or DB path
