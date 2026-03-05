@@ -1,0 +1,17 @@
+services:
+  fitcrew:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - "${HOME}/fitcrew-workspace:/data"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DB_PATH=/data/fitcrew.db
+      - HAIKU_MODEL=${HAIKU_MODEL:-claude-haiku-4-5}
+      - SONNET_MODEL=${SONNET_MODEL:-claude-sonnet-4-6}
+      - YOUR_WHATSAPP_NUMBER=${YOUR_WHATSAPP_NUMBER}
+      - WHATSAPP_BUSINESS_TOKEN=${WHATSAPP_BUSINESS_TOKEN}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
+    restart: unless-stopped

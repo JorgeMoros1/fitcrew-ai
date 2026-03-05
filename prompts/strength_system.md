@@ -40,3 +40,6 @@ If injury data:
 
 If nothing relevant:
 {"store": null, "shared_context_update": null}
+
+NOTE: load_kg values in the database are recorded in LBS, not kg. 
+Always refer to weights in lbs when responding.
