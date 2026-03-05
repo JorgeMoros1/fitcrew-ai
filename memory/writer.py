@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import sqlite3
 
@@ -21,7 +22,7 @@ def write_memory(memory_block: dict) -> None:
 
     if store:
         table = store.get("table")
-        data = store.get("data") or {}
+        data = store.get("data")
         if table and data:
             _insert_row(table, data)
 
@@ -29,18 +30,30 @@ def write_memory(memory_block: dict) -> None:
         _update_shared_context(shared_update)
 
 
-def _insert_row(table: str, data: dict) -> None:
+def _insert_row(table: str, data) -> None:
+    if not data:
+        return
     if table not in ALLOWED_TABLES:
         raise ValueError(f"Refusing to write to disallowed table: {table}")
-    columns = ", ".join(data.keys())
-    placeholders = ", ".join("?" * len(data))
+    rows = data if isinstance(data, list) else [data]
     conn = _connect()
-    conn.execute(
-        f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
-        list(data.values()),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        for row in rows:
+            if not isinstance(row, dict) or not row:
+                logging.warning("_insert_row: skipping non-dict row: %r", row)
+                continue
+            columns = ", ".join(row.keys())
+            placeholders = ", ".join("?" * len(row))
+            try:
+                conn.execute(
+                    f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
+                    list(row.values()),
+                )
+            except Exception as e:
+                logging.error("_insert_row: failed to insert into %s: %s | row=%r", table, e, row)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _update_shared_context(updates: dict) -> None:

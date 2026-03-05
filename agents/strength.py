@@ -50,11 +50,11 @@ async def call_strength_agent(message: str) -> str:
     for placeholder, value in substitutions.items():
         system_prompt = system_prompt.replace(placeholder, value)
 
-    client = anthropic.AsyncAnthropic()
-    response = await client.messages.create(
-        model=_select_model(message),
-        max_tokens=2048,
-        system=system_prompt,
-        messages=[{"role": "user", "content": message}],
-    )
+    async with anthropic.AsyncAnthropic() as client:
+        response = await client.messages.create(
+            model=_select_model(message),
+            max_tokens=2048,
+            system=system_prompt,
+            messages=[{"role": "user", "content": message}],
+        )
     return response.content[0].text
