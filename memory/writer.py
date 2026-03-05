@@ -42,6 +42,10 @@ def _insert_row(table: str, data) -> None:
             if not isinstance(row, dict) or not row:
                 logging.warning("_insert_row: skipping non-dict row: %r", row)
                 continue
+            if "load_lbs" in row and "load_kg" not in row:
+                row = {**row, "load_kg": row.pop("load_lbs")}
+            elif "load_lbs" in row:
+                row = {k: v for k, v in row.items() if k != "load_lbs"}
             columns = ", ".join(row.keys())
             placeholders = ", ".join("?" * len(row))
             try:

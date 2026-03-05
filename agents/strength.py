@@ -19,7 +19,7 @@ PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "strength_system.md"
 
 # Messages that need a full program build get the Sonnet model
 _COMPLEX_RE = re.compile(
-    r"\b(program|plan|block|periodize|4.week|8.week|mesocycle|template)\b",
+    r"\b(plan|program|periodize|design\s+my|build\s+me)\b",
     re.IGNORECASE,
 )
 
