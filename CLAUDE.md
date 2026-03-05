@@ -1,9 +1,9 @@
 # FitCrew AI — Claude Code Context
 
 ## Current Status
-**Last completed:** Arc 1 complete. Full stack live — WhatsApp Business API, Docker, Tailscale,
-Strength agent with 518 sessions of seeded history, active injury constraint, memory
-reads/writes confirmed over cellular.
+**Last completed:** Arc 1 complete. Full stack live — WhatsApp Business API, Hetzner VPS,
+Caddy HTTPS, Strength agent with 518 sessions of seeded history, active injury constraint,
+memory reads/writes confirmed over cellular. Permanent Meta System User token in place.
 **Next step:** Arc 2 — router/classifier + Running agent + @ mention routing for all three agents.
 **Blocked on:** Nothing.
 
@@ -14,8 +14,8 @@ None.
 
 ## What this is
 WhatsApp-native multi-agent fitness coaching system. Three Claude-powered agents
-(Strength, Running, Nutrition) respond in a single WhatsApp group chat. Runs locally
-in Docker, accessed from phone via Tailscale. Single user (Jorge).
+(Strength, Running, Nutrition) respond in a single WhatsApp group chat. Runs on a
+Hetzner VPS in Docker behind Caddy + HTTPS. Single user (Jorge).
 
 ## Current Arc
 **Arc 2 — Router/classifier + Running agent + @ mention routing for all three agents.**
@@ -69,10 +69,30 @@ fitcrew-ai/
 - SQLite at `~/fitcrew-workspace/fitcrew.db` — outside repo, never committed
 - Anthropic SDK for all Claude API calls
 - Model: `claude-haiku-4-5` for routing and daily Q&A, `claude-sonnet-4-6` for complex requests
-- Docker bound to `127.0.0.1` only — no LAN or internet exposure
-- Tailscale for phone access — no open ports
+- Docker with `restart=always` on Hetzner VPS — survives reboots automatically
+- Caddy reverse proxy handles HTTPS — no manual cert management
+- Meta webhook points directly at `https://fitcrew.duckdns.org/webhook` — no ngrok
 - `ANTHROPIC_API_KEY` via environment variable only — never hardcoded anywhere
 - DB path from environment variable `DB_PATH` — never hardcoded
+
+## Deployment
+**Server:** Hetzner VPS — `178.156.243.64`
+**Webhook URL:** `https://fitcrew.duckdns.org/webhook`
+**HTTPS:** Caddy reverse proxy (auto cert via DuckDNS)
+**Token:** Permanent System User token in `.env` — no daily refresh needed
+
+**To deploy changes:**
+```
+git push
+ssh root@178.156.243.64
+cd fitcrew-ai && git pull && docker-compose up --build -d
+```
+
+**To view logs:**
+```
+ssh root@178.156.243.64
+cd fitcrew-ai && docker-compose logs -f
+```
 
 ## Environment Variables
 All defined in `.env`, templated in `.env.example`:
