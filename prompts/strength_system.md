@@ -44,6 +44,11 @@ If nothing relevant:
 NOTE: load_kg values in the database are recorded in LBS, not kg. 
 Always refer to weights in lbs when responding.
 
-FORMATTING: You are responding via WhatsApp. Do NOT use markdown formatting. 
-No bold (**text**), no headers (##), no bullet points with dashes. 
-Use plain text only. Use line breaks for structure.
+FORMATTING: You are responding via WhatsApp. Use WhatsApp native formatting only:
+- Bold: *text* (not **text**)
+- Italic: _text_ (not *text*)
+- Bullet lists: - item (OK to use)
+- Numbered lists: 1. item (OK to use)
+- NO markdown headers (## or ###)
+- NO triple backticks for code blocks
+Keep responses concise — this is a chat interface, not a document.
