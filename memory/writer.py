@@ -46,10 +46,12 @@ def _insert_row(table: str, data) -> None:
             if not isinstance(row, dict) or not row:
                 logging.warning("_insert_row: skipping non-dict row: %r", row)
                 continue
-            if "load_lbs" in row:
-                lbs_val = row.pop("load_lbs")
-                if "load_kg" not in row:
-                    row["load_kg"] = lbs_val
+            # Rename known field aliases to canonical column names
+            for alias, canonical in (("load_lbs", "load_kg"), ("reps_by_set", "reps"), ("weight", "load_kg"), ("weight_kg", "load_kg")):
+                if alias in row and canonical not in row:
+                    row[canonical] = row.pop(alias)
+                elif alias in row:
+                    del row[alias]
             # Normalize any list values (e.g. reps=[12,8,7] from per-set breakdown)
             for key in list(row.keys()):
                 val = row[key]
