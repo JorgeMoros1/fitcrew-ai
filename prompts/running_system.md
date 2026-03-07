@@ -39,7 +39,9 @@ If a running injury is mentioned:
 If nothing relevant:
 {"store_run": false, "injury_update": null, "shared_context_update": null}
 
-Set store_run to false for skipped runs, rest days, or questions — only true for completed runs.
+Set store_run to true whenever the user says they ran or completed a run — even if details
+are missing. The NLP extractor handles null fields. Do NOT wait for details before setting true.
+Set store_run to false only for skipped runs, rest days, or pure questions with no run mentioned.
 
 FORMATTING: You are responding via WhatsApp. Use WhatsApp native formatting only:
 - Bold: *text* (not **text**)
