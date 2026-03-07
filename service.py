@@ -121,7 +121,7 @@ def strip_memory_json(raw: str) -> tuple[str, dict | None]:
         try:
             block = json.loads(json_str)
             if isinstance(block, dict) and _is_memory_block(block):
-                return raw[:fence_idx].strip(), block
+                return _clean_trailing_separator(raw[:fence_idx]), block
         except json.JSONDecodeError:
             pass
 
@@ -132,11 +132,19 @@ def strip_memory_json(raw: str) -> tuple[str, dict | None]:
         try:
             block, _ = decoder.raw_decode(raw, idx)
             if isinstance(block, dict) and _is_memory_block(block):
-                return raw[:idx].strip(), block
+                return _clean_trailing_separator(raw[:idx]), block
         except json.JSONDecodeError:
             pass
         idx = raw.rfind("{", 0, idx)
     return raw.strip(), None
+
+
+def _clean_trailing_separator(text: str) -> str:
+    """Strip trailing --- or *** horizontal rule the model may insert before the JSON block."""
+    cleaned = text.strip()
+    if cleaned.endswith("---") or cleaned.endswith("***"):
+        cleaned = cleaned[:-3].strip()
+    return cleaned
 
 
 # ---------------------------------------------------------------------------
