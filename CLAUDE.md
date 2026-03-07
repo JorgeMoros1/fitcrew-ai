@@ -1,19 +1,14 @@
 # FitCrew AI — Claude Code Context
 
 ## Current Status
-**Last completed:** Arc 2 code complete. All files written: router/mention.py,
-router/classifier.py, agents/running.py, memory/run_extractor.py, conversation_history
-table added to db/init_db.py, reader/writer updated, agents/strength.py wired to history,
-service.py fully rewritten with classifier fan-out + running memory handler.
-**Next step:** Task F — Docker rebuild on Hetzner (`docker compose up --build`), then
-run ChatGPT Running export → seed run_summary, then end-to-end test all routing paths
-from phone. Jorge must do the seeding and phone tests.
-**Blocked on:** Jorge must run ChatGPT Running export and seed the DB before the Running
-agent has history to reference. Docker rebuild required before testing.
+**Last completed:** Arc 2 fully complete and deployed. Docker rebuilt on Hetzner. Running
+agent live with seeded run_summary and 3 run_logs rows (2/10, 2/28, 3/6). Classifier,
+@ mention routing, conversation history, and NLP run extractor all live.
+**Next step:** Jorge end-to-end test all routing paths from phone. Then Arc 3 — Nutrition agent.
+**Blocked on:** Nothing. Awaiting phone test confirmation.
 
 ## Known Issues
-- Running agent has no seeded run_summary yet — Jorge must export ChatGPT Running data
-  and seed run_summary table before it has useful history context.
+None.
 
 ---
 
@@ -240,8 +235,8 @@ See `docs/dev_arc2.md` for full task prompts. Complete in order after Running ex
 ~~`memory/reader.py`: `get_conversation_history(agent, limit=30) -> str`.~~
 ~~Update `agents/strength.py` and `agents/running.py` to use history.~~
 
-**Task F — Docker rebuild + CLAUDE.md update**
-`docker compose up --build`, confirm all routing paths work, update CLAUDE.md.
+~~**Task F — Docker rebuild + CLAUDE.md update**~~
+~~`docker compose up --build`, confirm all routing paths work, update CLAUDE.md.~~
 
 ## Pre-Arc 3 Infrastructure
 
