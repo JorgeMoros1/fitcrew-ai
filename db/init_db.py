@@ -80,6 +80,14 @@ def init_db():
             active_injuries     TEXT,
             training_frequency  TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS conversation_history (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent       TEXT NOT NULL,
+            role        TEXT NOT NULL,
+            content     TEXT NOT NULL,
+            timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
     """)
 
     # Ensure exactly one row in shared_context (id=1)

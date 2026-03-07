@@ -1,8 +1,8 @@
 import asyncio
+import datetime
 import json
 import logging
 import os
-import re
 import traceback
 
 import requests
@@ -11,8 +11,18 @@ from flask import Flask, jsonify, request
 
 load_dotenv()
 
+from agents.running import call_running_agent
 from agents.strength import call_strength_agent
-from memory.writer import write_memory
+from memory.run_extractor import extract_run_log
+from memory.writer import (
+    merge_active_injury,
+    update_shared_context,
+    write_conversation_turn,
+    write_memory,
+    write_run_log,
+)
+from router.classifier import classify_message
+from router.mention import check_mention
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,7 +38,7 @@ _BUSINESS_TOKEN = os.environ.get("WHATSAPP_BUSINESS_TOKEN", "")
 _PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 _META_URL = "https://graph.facebook.com/v21.0/{phone_number_id}/messages"
 
-_MENTION_RE = re.compile(r"^@(strength|running|nutrition)\s+", re.IGNORECASE)
+_NUTRITION_STUB = "Coming in Arc 3. Tag @strength or @running for now."
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +48,7 @@ _MENTION_RE = re.compile(r"^@(strength|running|nutrition)\s+", re.IGNORECASE)
 def post_to_whatsapp(text: str, recipient: str) -> None:
     """Send a text message via the WhatsApp Business API."""
     if not _BUSINESS_TOKEN or not _PHONE_NUMBER_ID:
-        print(f"[WARN] Missing Meta credentials — console only:\n[OUT → {recipient}]\n{text}\n")
+        print(f"[WARN] Missing Meta credentials — console only:\n[OUT -> {recipient}]\n{text}\n")
         return
     resp = requests.post(
         _META_URL.format(phone_number_id=_PHONE_NUMBER_ID),
@@ -55,7 +65,7 @@ def post_to_whatsapp(text: str, recipient: str) -> None:
         timeout=10,
     )
     if not resp.ok:
-        print(f"[ERROR] Meta API {resp.status_code}: {resp.text}")
+        log.error("Meta API %s: %s", resp.status_code, resp.text)
 
 
 def receive_from_whatsapp(payload: dict) -> tuple[str, str] | None:
@@ -67,7 +77,6 @@ def receive_from_whatsapp(payload: dict) -> tuple[str, str] | None:
         value = payload["entry"][0]["changes"][0]["value"]
         messages = value.get("messages")
         if not messages:
-            # Status update (delivered/read receipt) — expected, not an error
             statuses = value.get("statuses")
             if statuses:
                 log.info("STATUS UPDATE: %s", statuses[0].get("status"))
@@ -93,24 +102,28 @@ def receive_from_whatsapp(payload: dict) -> tuple[str, str] | None:
 
 def strip_memory_json(raw: str) -> tuple[str, dict | None]:
     """
-    Locate and remove the trailing memory JSON block appended by the agent.
-    Handles two forms the model may produce:
+    Locate and remove the trailing memory JSON block appended by an agent.
+    Handles two forms:
       1. Wrapped in a markdown code fence: ```json\\n{...}\\n```
       2. Bare JSON on its own line (rfind-based fallback)
+    Recognises both strength blocks ("store" key) and running blocks ("store_run" key).
     Returns (clean_text, memory_block_or_None).
     """
-    # Try code-fence form first (more specific, no ambiguity)
+    def _is_memory_block(block: dict) -> bool:
+        return "store" in block or "store_run" in block
+
+    # Try code-fence form first
     fence_idx = raw.rfind("```json")
     if fence_idx != -1:
-        fence_content = raw[fence_idx + 7:]  # skip the "```json" marker
+        fence_content = raw[fence_idx + 7:]
         close_idx = fence_content.find("```")
         json_str = fence_content[:close_idx].strip() if close_idx != -1 else fence_content.strip()
         try:
             block = json.loads(json_str)
-            if isinstance(block, dict) and "store" in block:
+            if isinstance(block, dict) and _is_memory_block(block):
                 return raw[:fence_idx].strip(), block
         except json.JSONDecodeError:
-            pass  # fall through to rfind
+            pass
 
     # Fallback: bare JSON appended without a code fence
     decoder = json.JSONDecoder()
@@ -118,12 +131,38 @@ def strip_memory_json(raw: str) -> tuple[str, dict | None]:
     while idx >= 0:
         try:
             block, _ = decoder.raw_decode(raw, idx)
-            if isinstance(block, dict) and "store" in block:
+            if isinstance(block, dict) and _is_memory_block(block):
                 return raw[:idx].strip(), block
         except json.JSONDecodeError:
             pass
         idx = raw.rfind("{", 0, idx)
     return raw.strip(), None
+
+
+# ---------------------------------------------------------------------------
+# Running memory handler
+# ---------------------------------------------------------------------------
+
+async def _handle_running_memory(mem: dict, original_msg: str) -> None:
+    """Process the memory block from a Running agent response."""
+    store_run = mem.get("store_run", False)
+    injury_update = mem.get("injury_update")
+    shared_update = mem.get("shared_context_update")
+
+    if store_run:
+        run_data = await extract_run_log(original_msg)
+        if run_data:
+            run_data["date"] = run_data.get("date") or datetime.date.today().isoformat()
+            write_run_log(run_data)
+            log.info("RUN LOG written: %s", run_data)
+
+    if injury_update:
+        merge_active_injury(injury_update)
+        log.info("INJURY MERGED: %s", injury_update)
+
+    if shared_update:
+        update_shared_context(shared_update)
+        log.info("SHARED CONTEXT updated: %s", shared_update)
 
 
 # ---------------------------------------------------------------------------
@@ -136,26 +175,80 @@ async def handle_message(sender: str, text: str) -> None:
         log.info("DROPPED: bot echo from %s", sender)
         return
 
-    # @ mention pre-check
-    match = _MENTION_RE.match(text)
-    if match:
-        agent_name = match.group(1).lower()
-        if agent_name in ("running", "nutrition"):
-            log.info("SKIP: @%s not live in Arc 1", agent_name)
+    # @ mention pre-check — skip classifier if direct tag found
+    agent_name, clean_text = check_mention(text)
+
+    if agent_name == "nutrition":
+        log.info("@ MENTION: @nutrition stub")
+        post_to_whatsapp(f"Nutrition: {_NUTRITION_STUB}", sender)
+        return
+
+    if agent_name in ("strength", "running"):
+        agents_to_call = [agent_name]
+        msg = clean_text
+        log.info("@ MENTION: @%s | msg=%r", agent_name, msg)
+    else:
+        # No @ mention — run classifier
+        try:
+            result = await classify_message(text)
+        except Exception:
+            log.error("CLASSIFIER ERROR:\n%s", traceback.format_exc())
             return
-        text = text[match.end():]  # strip @strength prefix
+        agents_to_call = result.get("agents", [])
+        msg = text
+        log.info("CLASSIFIER: agents=%s | msg=%r", agents_to_call, msg[:80])
 
-    log.info("CALLING strength agent | sender=%s text=%r", sender, text)
-    raw = await call_strength_agent(text)
-    log.info("AGENT RESPONSE (%d chars): %r", len(raw), raw[:200])
+        if not agents_to_call:
+            log.info("DROPPED: classifier returned no agents")
+            return
 
-    clean, memory_block = strip_memory_json(raw)
-    log.info("CLEAN RESPONSE (%d chars) | memory_block=%s", len(clean), bool(memory_block))
+    # Fan out to agents — build coroutine list
+    coros = []
+    agent_list = []
+    for a in agents_to_call:
+        if a == "strength":
+            coros.append(call_strength_agent(msg))
+            agent_list.append("strength")
+        elif a == "running":
+            coros.append(call_running_agent(msg))
+            agent_list.append("running")
+        elif a == "nutrition":
+            post_to_whatsapp(f"Nutrition: {_NUTRITION_STUB}", sender)
 
-    if memory_block:
-        write_memory(memory_block)
+    if not coros:
+        return
 
-    post_to_whatsapp(f"💪 Strength: {clean}", sender)
+    results = await asyncio.gather(*coros, return_exceptions=True)
+
+    for agent, raw in zip(agent_list, results):
+        if isinstance(raw, Exception):
+            log.error("AGENT ERROR [%s]: %s\n%s", agent, raw, traceback.format_exc())
+            post_to_whatsapp(f"Sorry, the {agent} agent hit an error. Try again.", sender)
+            continue
+
+        clean, mem = strip_memory_json(raw)
+        log.info(
+            "AGENT [%s]: clean=%d chars | memory_block=%s",
+            agent, len(clean), bool(mem),
+        )
+
+        if agent == "strength":
+            if mem:
+                write_memory(mem)
+            post_to_whatsapp(f"Strength: {clean}", sender)
+            try:
+                write_conversation_turn("strength", msg, clean)
+            except Exception:
+                log.error("write_conversation_turn [strength] failed:\n%s", traceback.format_exc())
+
+        elif agent == "running":
+            if mem:
+                await _handle_running_memory(mem, msg)
+            post_to_whatsapp(f"Running: {clean}", sender)
+            try:
+                write_conversation_turn("running", msg, clean)
+            except Exception:
+                log.error("write_conversation_turn [running] failed:\n%s", traceback.format_exc())
 
 
 # ---------------------------------------------------------------------------

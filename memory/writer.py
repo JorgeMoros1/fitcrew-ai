@@ -15,8 +15,12 @@ def _connect() -> sqlite3.Connection:
     return sqlite3.connect(DB_PATH)
 
 
+# ---------------------------------------------------------------------------
+# Strength memory
+# ---------------------------------------------------------------------------
+
 def write_memory(memory_block: dict) -> None:
-    """Parse memory JSON from agent response and persist to SQLite."""
+    """Parse strength agent memory JSON and persist to SQLite."""
     store = memory_block.get("store")
     shared_update = memory_block.get("shared_context_update")
 
@@ -27,7 +31,7 @@ def write_memory(memory_block: dict) -> None:
             _insert_row(table, data)
 
     if shared_update:
-        _update_shared_context(shared_update)
+        update_shared_context(shared_update)
 
 
 def _insert_row(table: str, data) -> None:
@@ -60,7 +64,7 @@ def _insert_row(table: str, data) -> None:
         conn.close()
 
 
-def _update_shared_context(updates: dict) -> None:
+def update_shared_context(updates: dict) -> None:
     filtered = {k: v for k, v in updates.items() if k in SHARED_CONTEXT_FIELDS}
     if not filtered:
         return
@@ -74,3 +78,77 @@ def _update_shared_context(updates: dict) -> None:
     )
     conn.commit()
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Running memory
+# ---------------------------------------------------------------------------
+
+def write_run_log(data: dict) -> None:
+    """Insert a parsed run_logs row. Caller must include a 'date' field."""
+    _insert_row("run_logs", data)
+
+
+def merge_active_injury(injury_update: dict) -> None:
+    """
+    Merge a running injury update into shared_context.active_injuries (JSON array).
+    Matches on body_part — updates existing entry or appends new one.
+    """
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute("SELECT active_injuries FROM shared_context WHERE id = 1")
+    row = cur.fetchone()
+    conn.close()
+
+    existing: list = []
+    if row and row[0]:
+        try:
+            existing = json.loads(row[0])
+            if not isinstance(existing, list):
+                existing = []
+        except (json.JSONDecodeError, TypeError):
+            existing = []
+
+    body_part = injury_update.get("body_part")
+    updated = False
+    for i, inj in enumerate(existing):
+        if isinstance(inj, dict) and inj.get("body_part") == body_part:
+            existing[i] = {**inj, **injury_update}
+            updated = True
+            break
+    if not updated:
+        existing.append(injury_update)
+
+    update_shared_context({"active_injuries": existing})
+
+
+# ---------------------------------------------------------------------------
+# Conversation history
+# ---------------------------------------------------------------------------
+
+def write_conversation_turn(agent: str, user_message: str, assistant_response: str) -> None:
+    """
+    Persist a user+assistant exchange for the given agent.
+    Prunes to the most recent 30 pairs (60 rows) per agent after insertion.
+    """
+    conn = _connect()
+    try:
+        conn.execute(
+            "INSERT INTO conversation_history (agent, role, content) VALUES (?, ?, ?)",
+            (agent, "user", user_message),
+        )
+        conn.execute(
+            "INSERT INTO conversation_history (agent, role, content) VALUES (?, ?, ?)",
+            (agent, "assistant", assistant_response),
+        )
+        # Prune beyond 60 rows per agent
+        conn.execute(
+            "DELETE FROM conversation_history WHERE agent = ? AND id NOT IN "
+            "(SELECT id FROM conversation_history WHERE agent = ? ORDER BY id DESC LIMIT 60)",
+            (agent, agent),
+        )
+        conn.commit()
+    except Exception as exc:
+        logging.error("write_conversation_turn: failed for agent=%s: %s", agent, exc)
+    finally:
+        conn.close()

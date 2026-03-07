@@ -1,14 +1,19 @@
 # FitCrew AI — Claude Code Context
 
 ## Current Status
-**Last completed:** Arc 1 complete. Full stack live — WhatsApp Business API, Hetzner VPS,
-Caddy HTTPS, Strength agent with 518 sessions of seeded history, active injury constraint,
-memory reads/writes confirmed over cellular. Permanent Meta System User token in place.
-**Next step:** Arc 2 — router/classifier + Running agent + @ mention routing for all three agents.
-**Blocked on:** Nothing.
+**Last completed:** Arc 2 code complete. All files written: router/mention.py,
+router/classifier.py, agents/running.py, memory/run_extractor.py, conversation_history
+table added to db/init_db.py, reader/writer updated, agents/strength.py wired to history,
+service.py fully rewritten with classifier fan-out + running memory handler.
+**Next step:** Task F — Docker rebuild on Hetzner (`docker compose up --build`), then
+run ChatGPT Running export → seed run_summary, then end-to-end test all routing paths
+from phone. Jorge must do the seeding and phone tests.
+**Blocked on:** Jorge must run ChatGPT Running export and seed the DB before the Running
+agent has history to reference. Docker rebuild required before testing.
 
 ## Known Issues
-None.
+- Running agent has no seeded run_summary yet — Jorge must export ChatGPT Running data
+  and seed run_summary table before it has useful history context.
 
 ---
 
@@ -211,29 +216,29 @@ WhatsApp echo bot is confirmed working:
 ## Arc 2 Task List (Claude Code Delegation)
 See `docs/dev_arc2.md` for full task prompts. Complete in order after Running export is seeded.
 
-**Task A — @ mention routing for all three agents (`service.py`)**
-Extend mention pre-check: `@running` → Running agent, `@nutrition` → hardcoded stub response.
+~~**Task A — @ mention routing for all three agents (`service.py`)**~~
+~~Extend mention pre-check: `@running` → Running agent, `@nutrition` → hardcoded stub response.~~
 
-**Task B — `router/classifier.py` + `router/mention.py`**
-`check_mention()` extracts agent + cleaned message from position-0 @mention.
-`classify_message()` makes one Haiku call, returns `{"agents": [...]}`.
-Update `service.py` to use both, fan out in parallel.
+~~**Task B — `router/classifier.py` + `router/mention.py`**~~
+~~`check_mention()` extracts agent + cleaned message from position-0 @mention.~~
+~~`classify_message()` makes one Haiku call, returns `{"agents": [...]}`.~~
+~~Update `service.py` to use both, fan out in parallel.~~
 
-**Task C — `agents/running.py`**
-Context assembly (run_summary, run_logs last 4 weeks, shared_context injuries, shared).
-Loads `prompts/running_system.md`, str.replace() substitution, returns raw response.
-Memory JSON format: `{"store_run": bool, "injury_update": {...}|null, "shared_context_update": {...}|null}`
+~~**Task C — `agents/running.py`**~~
+~~Context assembly (run_summary, run_logs last 4 weeks, shared_context injuries, shared).~~
+~~Loads `prompts/running_system.md`, str.replace() substitution, returns raw response.~~
+~~Memory JSON format: `{"store_run": bool, "injury_update": {...}|null, "shared_context_update": {...}|null}`~~
 
-**Task D — `memory/run_extractor.py`**
-NLP sub-call: one Haiku call extracts structured run fields from natural language.
-Returns `dict | None`. Returns `None` if no_run=true or parse fails.
-Caller (service.py) writes result to `run_logs` if not None.
+~~**Task D — `memory/run_extractor.py`**~~
+~~NLP sub-call: one Haiku call extracts structured run fields from natural language.~~
+~~Returns `dict | None`. Returns `None` if no_run=true or parse fails.~~
+~~Caller (service.py) writes result to `run_logs` if not None.~~
 
-**Task E — `conversation_history` table + reader/writer updates**
-Add table to `db/init_db.py` (CREATE IF NOT EXISTS, safe to run against existing DB).
-`memory/writer.py`: `write_conversation_turn(agent, user_msg, assistant_response)`.
-`memory/reader.py`: `get_conversation_history(agent, limit=30) -> str`.
-Update `agents/strength.py` and `agents/running.py` to use history.
+~~**Task E — `conversation_history` table + reader/writer updates**~~
+~~Add table to `db/init_db.py` (CREATE IF NOT EXISTS, safe to run against existing DB).~~
+~~`memory/writer.py`: `write_conversation_turn(agent, user_msg, assistant_response)`.~~
+~~`memory/reader.py`: `get_conversation_history(agent, limit=30) -> str`.~~
+~~Update `agents/strength.py` and `agents/running.py` to use history.~~
 
 **Task F — Docker rebuild + CLAUDE.md update**
 `docker compose up --build`, confirm all routing paths work, update CLAUDE.md.

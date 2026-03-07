@@ -7,6 +7,7 @@ import anthropic
 
 from memory.reader import (
     get_active_injuries,
+    get_conversation_history,
     get_recent_sessions,
     get_shared_context,
     get_strength_summary,
@@ -38,9 +39,11 @@ async def call_strength_agent(message: str) -> str:
     injuries = get_active_injuries()
     shared = get_shared_context()
 
+    history = get_conversation_history("strength", limit=30)
+
     substitutions = {
         "{summary}": summary or "No summary available.",
-        "{history}": "",  # conversation history not tracked in Arc 1
+        "{history}": history or "No conversation history yet.",
         "{sessions}": json.dumps(sessions, indent=2) if sessions else "No recent sessions.",
         "{injuries}": json.dumps(injuries, indent=2) if injuries else "No active injuries.",
         "{shared}": json.dumps(shared, indent=2) if shared else "No shared context.",
