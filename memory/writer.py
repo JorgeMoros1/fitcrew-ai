@@ -50,6 +50,18 @@ def _insert_row(table: str, data) -> None:
                 lbs_val = row.pop("load_lbs")
                 if "load_kg" not in row:
                     row["load_kg"] = lbs_val
+            # Normalize any list values (e.g. reps=[12,8,7] from per-set breakdown)
+            for key in list(row.keys()):
+                val = row[key]
+                if isinstance(val, list):
+                    if val and all(isinstance(v, (int, float)) for v in val):
+                        breakdown = "/".join(str(v) for v in val)
+                        row[key] = round(sum(val) / len(val))
+                        existing_notes = row.get("notes") or ""
+                        if breakdown not in existing_notes:
+                            row["notes"] = f"{existing_notes} {key}:{breakdown}".strip()
+                    else:
+                        row[key] = "/".join(str(v) for v in val)
             columns = ", ".join(row.keys())
             placeholders = ", ".join("?" * len(row))
             try:
