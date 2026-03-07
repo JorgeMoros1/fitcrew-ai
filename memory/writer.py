@@ -10,6 +10,14 @@ SHARED_CONTEXT_FIELDS = {
     "current_phase", "goal", "body_weight_kg", "active_injuries", "training_frequency"
 }
 
+# Canonical column sets per table — any key not in this set is dropped before INSERT
+TABLE_COLUMNS: dict[str, set[str]] = {
+    "strength_sessions": {"date", "exercise", "sets", "reps", "load_kg", "rpe", "notes"},
+    "strength_injuries": {"date_onset", "body_part", "affected_movements", "severity", "status"},
+    "run_logs": {"date", "distance_km", "duration_min", "avg_hr", "max_hr", "pain_flag", "pain_body_part", "pain_level", "notes"},
+    "nutrition_log": {"date", "body_weight_kg", "physique_notes", "calorie_target", "macro_split", "phase", "emotional_flags"},
+}
+
 
 def _connect() -> sqlite3.Connection:
     return sqlite3.connect(DB_PATH)
@@ -46,13 +54,22 @@ def _insert_row(table: str, data) -> None:
             if not isinstance(row, dict) or not row:
                 logging.warning("_insert_row: skipping non-dict row: %r", row)
                 continue
-            # Rename known field aliases to canonical column names
-            for alias, canonical in (("load_lbs", "load_kg"), ("reps_by_set", "reps"), ("weight", "load_kg"), ("weight_kg", "load_kg")):
+            # Map common model-invented aliases to canonical column names
+            for alias, canonical in (
+                ("load_lbs", "load_kg"), ("weight", "load_kg"), ("weight_kg", "load_kg"),
+            ):
                 if alias in row and canonical not in row:
                     row[canonical] = row.pop(alias)
                 elif alias in row:
                     del row[alias]
-            # Normalize any list values (e.g. reps=[12,8,7] from per-set breakdown)
+            # Map any reps_* variant (reps_by_set, reps_per_set, etc.) to reps
+            for key in list(row.keys()):
+                if key != "reps" and key.startswith("reps"):
+                    if "reps" not in row:
+                        row["reps"] = row.pop(key)
+                    else:
+                        del row[key]
+            # Normalize list values to their average (store breakdown in notes)
             for key in list(row.keys()):
                 val = row[key]
                 if isinstance(val, list):
@@ -61,9 +78,15 @@ def _insert_row(table: str, data) -> None:
                         row[key] = round(sum(val) / len(val))
                         existing_notes = row.get("notes") or ""
                         if breakdown not in existing_notes:
-                            row["notes"] = f"{existing_notes} {key}:{breakdown}".strip()
+                            row["notes"] = f"{existing_notes} [{key}: {breakdown}]".strip()
                     else:
                         row[key] = "/".join(str(v) for v in val)
+            # Drop any columns not in the schema for this table
+            allowed = TABLE_COLUMNS.get(table)
+            if allowed:
+                row = {k: v for k, v in row.items() if k in allowed}
+            if not row:
+                continue
             columns = ", ".join(row.keys())
             placeholders = ", ".join("?" * len(row))
             try:
