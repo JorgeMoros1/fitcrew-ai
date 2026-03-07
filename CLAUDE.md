@@ -1,11 +1,11 @@
 # FitCrew AI — Claude Code Context
 
 ## Current Status
-**Last completed:** Arc 2 fully complete and deployed. Docker rebuilt on Hetzner. Running
-agent live with seeded run_summary and 3 run_logs rows (2/10, 2/28, 3/6). Classifier,
-@ mention routing, conversation history, and NLP run extractor all live.
-**Next step:** Jorge end-to-end test all routing paths from phone. Then Arc 3 — Nutrition agent.
-**Blocked on:** Nothing. Awaiting phone test confirmation.
+**Last completed:** Arc 2 fully complete, deployed, and phone-tested. All routing paths
+confirmed — @mention, classifier fan-out, multi-agent parallel, off-topic drop, NLP run
+extraction, and memory writes all working. Running agent seeded with ChatGPT export.
+**Next step:** Arc 3 — Nutrition agent.
+**Blocked on:** Nothing.
 
 ## Known Issues
 None.
@@ -18,10 +18,9 @@ WhatsApp-native multi-agent fitness coaching system. Three Claude-powered agents
 Hetzner VPS in Docker behind Caddy + HTTPS. Single user (Jorge).
 
 ## Current Arc
-**Arc 2 — Router/classifier + Running agent + @ mention routing for all three agents.**
-Nutrition comes in Arc 3.
+**Arc 3 — Nutrition agent.**
 Do not implement Arc 3 features unless the task explicitly says so.
-Reference: `docs/dev_arc2.md` for full task breakdown and sequencing.
+Reference: `docs/dev_arc3.md` for full task breakdown and sequencing (when created).
 
 ## Repo Structure
 ```
