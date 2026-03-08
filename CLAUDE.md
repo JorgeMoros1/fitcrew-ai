@@ -50,9 +50,10 @@ fitcrew-ai/
 │   ├── cost_logger.py           ← Arc 3: live (CSV cost log per API call)
 │   └── cost_report.py           ← Arc 3: live (monthly cost summary CLI)
 ├── db/
-│   ├── init_db.py               ← Arc 1: live
-│   ├── migrate_load_column.py   ← Arc 3: one-time migration (already run)
-│   └── seed_nutrition.sql       ← Arc 3: one-time seed (already run)
+│   ├── init_db.py               ← run on every deploy (CREATE IF NOT EXISTS)
+│   └── seeds/
+│       ├── seed_fitcrew.sql     ← one-time strength seed (already run)
+│       └── seed_nutrition.sql   ← one-time nutrition seed (already run)
 ├── onboarding/
 │   └── onboard.py               ← Arc 1: live
 ├── scripts/
