@@ -337,10 +337,10 @@ def receive():
 
 def _start_scheduler() -> None:
     from cron.summarizer import run_weekly_summarizer
-    scheduler = BackgroundScheduler(timezone="UTC")
-    scheduler.add_job(run_weekly_summarizer, "cron", day_of_week="sun", hour=23, minute=0)
+    scheduler = BackgroundScheduler(timezone="America/New_York")
+    scheduler.add_job(run_weekly_summarizer, "cron", day_of_week="sun", hour=20, minute=0)
     scheduler.start()
-    log.info("SCHEDULER: weekly summarizer scheduled for Sunday 23:00 UTC")
+    log.info("SCHEDULER: weekly summarizer scheduled for Sunday 20:00 America/New_York (8 PM ET)")
 
 
 _start_scheduler()
