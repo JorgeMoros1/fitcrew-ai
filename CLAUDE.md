@@ -1,11 +1,12 @@
 # FitCrew AI — Claude Code Context
 
 ## Current Status
-**Last completed:** Arc 2 fully complete, deployed, and phone-tested. All routing paths
-confirmed — @mention, classifier fan-out, multi-agent parallel, off-topic drop, NLP run
-extraction, and memory writes all working. Running agent seeded with ChatGPT export.
-**Next step:** Arc 3 — Nutrition agent.
-**Blocked on:** Nothing.
+**Last completed:** Arc 3 Day 1-2 complete. Nutrition agent live — @nutrition returns real
+Claude responses grounded in nutrition summary, cross-domain training load, and conversation
+history. Error handling overhauled (always 200, dedup guard, error messages posted to WhatsApp).
+Nutrition seed SQL run against live DB.
+**Next step:** Arc 3 Day 2-3 — Task D (weekly summarizer cron) + Task F (cost logging).
+**Blocked on:** Nothing. Test @nutrition from phone to confirm end-to-end.
 
 ## Known Issues
 None.
