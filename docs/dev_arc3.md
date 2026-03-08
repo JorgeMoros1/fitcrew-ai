@@ -372,7 +372,28 @@ Day 3 (you + delegate):
 
 ## What Arc 4 adds
 
-Raspberry Pi migration (optional — Hetzner is working fine), shared conversation log across agents (Strength/Running/Nutrition can see each other's responses), onboarding flow for new users, PR celebration messages, proactive check-ins (no session logged in 3 days).
+**Agent consultation (cross-domain synthesis)**
+For questions that require multiple agents to confer before responding (e.g. "should I run or lift tomorrow?", "am I recovered enough to train?", "is my nutrition supporting my training load?"), Arc 4 adds an orchestrator pattern:
+
+1. Router detects consultation intent — a new message type alongside single-agent and fan-out
+2. Relevant specialist agents (Strength, Running, Nutrition) are called in parallel with a modified "assessment mode" prompt — they return a structured internal assessment, not a WhatsApp message
+3. A Synthesizer call (Sonnet) receives all assessments as input and writes one unified response
+
+Example — "should I run or lift tomorrow?":
+- Strength assessment: "Last session was heavy legs 2 days ago, elbow still remodeling → recommend upper push"
+- Running assessment: "Right knee flagged last run, 3 days rest → cleared for easy run, keep short"
+- Synthesizer output: "Either works. Lift = upper push only, legs need another day. Run = keep under 30 min easy given the knee. Avoid back-to-back hard days this week."
+
+Cost: three API calls (two Haiku specialists + one Sonnet synthesizer) vs one call for normal messages. Estimated 15-20 cents per consultation query.
+
+Technical requirements:
+- New consultation intent classifier in router/classifier.py
+- Assessment mode system prompt variant per agent (returns JSON assessment block, not WhatsApp reply)
+- New agents/synthesizer.py — assembles assessments, calls Sonnet, returns unified response
+- service.py consultation path alongside existing single-agent and fan-out paths
+
+**Other Arc 4 additions**
+Shared conversation log across agents (Strength/Running/Nutrition can see each other's recent responses), onboarding flow for new users, PR celebration messages, proactive check-ins (no session logged in 3 days), Raspberry Pi migration (optional — Hetzner is working fine).
 
 ---
 
