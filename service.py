@@ -12,6 +12,7 @@ from flask import Flask, jsonify, request
 
 load_dotenv()
 
+from apscheduler.schedulers.background import BackgroundScheduler
 from agents.nutrition import call_nutrition_agent
 from agents.running import call_running_agent
 from agents.strength import call_strength_agent
@@ -333,6 +334,16 @@ def receive():
             pass
     return jsonify({"status": "ok"}), 200
 
+
+def _start_scheduler() -> None:
+    from cron.summarizer import run_weekly_summarizer
+    scheduler = BackgroundScheduler(timezone="UTC")
+    scheduler.add_job(run_weekly_summarizer, "cron", day_of_week="sun", hour=23, minute=0)
+    scheduler.start()
+    log.info("SCHEDULER: weekly summarizer scheduled for Sunday 23:00 UTC")
+
+
+_start_scheduler()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)

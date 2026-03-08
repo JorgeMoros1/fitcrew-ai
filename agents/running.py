@@ -5,6 +5,7 @@ from pathlib import Path
 
 import anthropic
 
+from cron.cost_logger import log_call
 from memory.reader import (
     get_conversation_history,
     get_recent_run_logs,
@@ -48,11 +49,13 @@ async def call_running_agent(message: str) -> str:
     for placeholder, value in substitutions.items():
         system_prompt = system_prompt.replace(placeholder, value)
 
+    model = _select_model(message)
     async with anthropic.AsyncAnthropic() as client:
         response = await client.messages.create(
-            model=_select_model(message),
+            model=model,
             max_tokens=2048,
             system=system_prompt,
             messages=[{"role": "user", "content": message}],
         )
+    log_call("running", model, response.usage.input_tokens, response.usage.output_tokens)
     return response.content[0].text
