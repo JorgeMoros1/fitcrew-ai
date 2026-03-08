@@ -160,6 +160,15 @@ def merge_active_injury(injury_update: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Nutrition memory
+# ---------------------------------------------------------------------------
+
+def write_nutrition_log(data: dict) -> None:
+    """Insert a row into nutrition_log."""
+    _insert_row("nutrition_log", data)
+
+
+# ---------------------------------------------------------------------------
 # Conversation history
 # ---------------------------------------------------------------------------
 

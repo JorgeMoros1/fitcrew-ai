@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import traceback
+from collections import deque
 
 import requests
 from dotenv import load_dotenv
@@ -39,6 +40,9 @@ _PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 _META_URL = "https://graph.facebook.com/v21.0/{phone_number_id}/messages"
 
 _NUTRITION_STUB = "Coming in Arc 3. Tag @strength or @running for now."
+
+# Dedup guard — stores last 10 message IDs to drop Meta retries on 500s
+_seen_message_ids: deque = deque(maxlen=10)
 
 
 # ---------------------------------------------------------------------------
@@ -90,8 +94,9 @@ def receive_from_whatsapp(payload: dict) -> tuple[str, str] | None:
             return None
         sender = msg["from"]
         text = msg["text"]["body"]
-        log.info("RECEIVED: sender=%s text=%r", sender, text)
-        return sender, text
+        message_id = msg.get("id", "")
+        log.info("RECEIVED: sender=%s id=%s text=%r", sender, message_id, text)
+        return sender, text, message_id
     except (KeyError, IndexError, TypeError) as exc:
         log.error("PARSE ERROR: %s — payload: %s", exc, json.dumps(payload))
 
@@ -110,7 +115,7 @@ def strip_memory_json(raw: str) -> tuple[str, dict | None]:
     Returns (clean_text, memory_block_or_None).
     """
     def _is_memory_block(block: dict) -> bool:
-        return "store" in block or "store_run" in block
+        return "store" in block or "store_run" in block or "store_log" in block
 
     # Try code-fence form first
     fence_idx = raw.rfind("```json")
@@ -201,6 +206,7 @@ async def handle_message(sender: str, text: str) -> None:
             result = await classify_message(text)
         except Exception:
             log.error("CLASSIFIER ERROR:\n%s", traceback.format_exc())
+            post_to_whatsapp("⚠️ Router hit an error. Try again or check logs.", sender)
             return
         agents_to_call = result.get("agents", [])
         msg = text
@@ -231,7 +237,7 @@ async def handle_message(sender: str, text: str) -> None:
     for agent, raw in zip(agent_list, results):
         if isinstance(raw, Exception):
             log.error("AGENT ERROR [%s]: %s\n%s", agent, raw, traceback.format_exc())
-            post_to_whatsapp(f"Sorry, the {agent} agent hit an error. Try again.", sender)
+            post_to_whatsapp(f"⚠️ {agent.capitalize()} hit an error. Try again or check logs.", sender)
             continue
 
         clean, mem = strip_memory_json(raw)
@@ -281,12 +287,23 @@ def receive():
     result = receive_from_whatsapp(payload)
     if result is None:
         return jsonify({"status": "ignored"}), 200
-    sender, text = result
+    sender, text, message_id = result
+
+    # Dedup: drop if we've seen this message ID recently (Meta retries on 500)
+    if message_id and message_id in _seen_message_ids:
+        log.info("DEDUP: dropped duplicate message_id=%s", message_id)
+        return jsonify({"status": "ignored"}), 200
+    if message_id:
+        _seen_message_ids.append(message_id)
+
     try:
         asyncio.run(handle_message(sender, text))
     except Exception:
         log.error("handle_message raised an exception:\n%s", traceback.format_exc())
-        return jsonify({"status": "error"}), 500
+        try:
+            post_to_whatsapp("⚠️ Something went wrong. Try again or check logs.", sender)
+        except Exception:
+            pass
     return jsonify({"status": "ok"}), 200
 
 
