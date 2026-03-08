@@ -59,10 +59,10 @@ fitcrew-ai/
 ├── scripts/
 │   └── export_context.py        ← debugging utility
 └── prompts/
-    ├── strength_system.md        ← Arc 1: live
-    ├── running_system.md         ← Arc 2: live
-    ├── nutrition_system.md       ← Arc 3: live
-    └── router_system.md          ← Arc 2: live
+    ├── strength_system.md        ← live
+    ├── running_system.md         ← live
+    ├── nutrition_system.md       ← live
+    └── router_system.md          ← live
 ```
 
 ## Key Technical Decisions
