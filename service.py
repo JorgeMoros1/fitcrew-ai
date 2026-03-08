@@ -12,6 +12,7 @@ from flask import Flask, jsonify, request
 
 load_dotenv()
 
+from agents.nutrition import call_nutrition_agent
 from agents.running import call_running_agent
 from agents.strength import call_strength_agent
 from memory.run_extractor import extract_run_log
@@ -20,6 +21,7 @@ from memory.writer import (
     update_shared_context,
     write_conversation_turn,
     write_memory,
+    write_nutrition_log,
     write_run_log,
 )
 from router.classifier import classify_message
@@ -38,8 +40,6 @@ VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "fitcrew_verify_2026")
 _BUSINESS_TOKEN = os.environ.get("WHATSAPP_BUSINESS_TOKEN", "")
 _PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 _META_URL = "https://graph.facebook.com/v21.0/{phone_number_id}/messages"
-
-_NUTRITION_STUB = "Coming in Arc 3. Tag @strength or @running for now."
 
 # Dedup guard — stores last 10 message IDs to drop Meta retries on 500s
 _seen_message_ids: deque = deque(maxlen=10)
@@ -156,6 +156,28 @@ def _clean_trailing_separator(text: str) -> str:
 # Running memory handler
 # ---------------------------------------------------------------------------
 
+def _handle_nutrition_memory(mem: dict) -> None:
+    """Process the memory block from a Nutrition agent response."""
+    store_log = mem.get("store_log", False)
+    log_data = mem.get("log_data")
+    phase_update = mem.get("phase_update")
+    shared_update = mem.get("shared_context_update")
+
+    if store_log and log_data:
+        if not log_data.get("date"):
+            log_data["date"] = datetime.date.today().isoformat()
+        write_nutrition_log(log_data)
+        log.info("NUTRITION LOG written: %s", log_data)
+
+    if phase_update:
+        update_shared_context({"current_phase": phase_update})
+        log.info("PHASE UPDATE: %s", phase_update)
+
+    if shared_update:
+        update_shared_context(shared_update)
+        log.info("SHARED CONTEXT updated (nutrition): %s", shared_update)
+
+
 async def _handle_running_memory(mem: dict, original_msg: str) -> None:
     """Process the memory block from a Running agent response."""
     store_run = mem.get("store_run", False)
@@ -191,12 +213,7 @@ async def handle_message(sender: str, text: str) -> None:
     # @ mention pre-check — skip classifier if direct tag found
     agent_name, clean_text = check_mention(text)
 
-    if agent_name == "nutrition":
-        log.info("@ MENTION: @nutrition stub")
-        post_to_whatsapp(f"Nutrition: {_NUTRITION_STUB}", sender)
-        return
-
-    if agent_name in ("strength", "running"):
+    if agent_name in ("strength", "running", "nutrition"):
         agents_to_call = [agent_name]
         msg = clean_text
         log.info("@ MENTION: @%s | msg=%r", agent_name, msg)
@@ -227,7 +244,8 @@ async def handle_message(sender: str, text: str) -> None:
             coros.append(call_running_agent(msg))
             agent_list.append("running")
         elif a == "nutrition":
-            post_to_whatsapp(f"Nutrition: {_NUTRITION_STUB}", sender)
+            coros.append(call_nutrition_agent(msg))
+            agent_list.append("nutrition")
 
     if not coros:
         return
@@ -263,6 +281,15 @@ async def handle_message(sender: str, text: str) -> None:
                 write_conversation_turn("running", msg, clean)
             except Exception:
                 log.error("write_conversation_turn [running] failed:\n%s", traceback.format_exc())
+
+        elif agent == "nutrition":
+            if mem:
+                _handle_nutrition_memory(mem)
+            post_to_whatsapp(f"🥗 Nutrition: {clean}", sender)
+            try:
+                write_conversation_turn("nutrition", msg, clean)
+            except Exception:
+                log.error("write_conversation_turn [nutrition] failed:\n%s", traceback.format_exc())
 
 
 # ---------------------------------------------------------------------------
