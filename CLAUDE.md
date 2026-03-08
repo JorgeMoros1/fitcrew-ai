@@ -46,7 +46,7 @@ fitcrew-ai/
 │   ├── writer.py                ← Arc 1: live (nutrition log write added Arc 3)
 │   └── run_extractor.py         ← Arc 2: live (NLP sub-call for run logs)
 ├── cron/
-│   ├── summarizer.py            ← Arc 3: live (weekly cron, APScheduler, Sunday 23:00 UTC)
+│   ├── summarizer.py            ← Arc 3: live (weekly cron, APScheduler, Sunday 20:00 ET)
 │   ├── cost_logger.py           ← Arc 3: live (CSV cost log per API call)
 │   └── cost_report.py           ← Arc 3: live (monthly cost summary CLI)
 ├── db/
@@ -153,16 +153,23 @@ conversation_history  — Arc 2: id, agent ('strength'|'running'|'nutrition'), r
 - Nutrition: READ on all tables, R/W on nutrition_* tables + shared_context
 
 ## Memory Architecture
-Each agent appends a JSON memory block to the end of every response:
+Each agent appends a JSON memory block to the end of every response. `service.py` strips
+it before posting to WhatsApp and writes it to SQLite. It must never appear in the response.
+
+**Strength format:**
 ```json
 {"store": {"table": "strength_sessions", "data": {...}}, "shared_context_update": {"key": "value"}}
 ```
-Or if nothing to store:
+
+**Running format:**
 ```json
-{"store": null, "shared_context_update": null}
+{"store_run": true, "injury_update": {...}|null, "shared_context_update": {...}|null}
 ```
-`service.py` strips this block before posting to WhatsApp and writes it to SQLite.
-The memory block must never appear in the WhatsApp response Jorge sees.
+
+**Nutrition format:**
+```json
+{"store_log": true, "log_data": {"date": "...", "body_weight_kg": 75.3, ...}|null, "phase_update": "bulk"|"cut"|"maintain"|null, "shared_context_update": {...}|null}
+```
 
 ## System Prompts
 All system prompts live in `prompts/` as markdown files.
@@ -171,21 +178,26 @@ the prompt files contain JSON examples with curly braces that would break `.form
 Edit prompts by modifying the `.md` files — do not hardcode prompt strings in Python.
 
 Template variables used in prompts:
-`{summary}`, `{history}`, `{sessions}`, `{injuries}`, `{shared}`, `{message}`
+- Strength: `{summary}`, `{history}`, `{sessions}`, `{injuries}`, `{shared}`, `{message}`
+- Running: `{summary}`, `{history}`, `{run_logs}`, `{shared}`, `{message}`
+- Nutrition: `{summary}`, `{history}`, `{nutrition_logs}`, `{strength_load}`, `{run_load}`, `{shared}`, `{message}`
 
-## WhatsApp Routing (Arc 2)
+## WhatsApp Routing
 1. Drop bot echo messages: if sender == `WHATSAPP_BOT_NUMBER`, drop silently
-2. Check for @ mention via `router/mention.py` → `check_mention(message)`
+2. Dedup guard: if message_id seen in last 10 messages, drop silently (prevents Meta retry storms)
+3. Check for @ mention via `router/mention.py` → `check_mention(message)`
    - `@strength` → Strength agent
    - `@running` → Running agent
-   - `@nutrition` → hardcoded stub response ("🥗 Nutrition: Coming in Arc 3.")
-3. If no @ mention → `router/classifier.py` → `classify_message(message)` (Haiku call)
+   - `@nutrition` → Nutrition agent
+4. If no @ mention → `router/classifier.py` → `classify_message(message)` (Haiku call)
    - Returns `{"agents": ["strength"|"running"|...]}` — fan out in parallel via `asyncio.gather`
    - Empty agents list → drop silently, no response
-4. Per agent: call agent, strip memory JSON, write to SQLite, post with prefix
-   - Strength: `💪 Strength:` — writes to strength_* tables
-   - Running: `🏃 Running:` — writes to run_logs, fires NLP sub-call via `memory/run_extractor.py`
-5. Write conversation turn to `conversation_history` after each successful response
+5. Per agent: call agent, strip memory JSON, write to SQLite, post with prefix
+   - Strength: `Strength:` — writes to strength_* tables
+   - Running: `Running:` — writes to run_logs, fires NLP sub-call via `memory/run_extractor.py`
+   - Nutrition: `🥗 Nutrition:` — writes to nutrition_log, updates shared_context phase if changed
+6. Write conversation turn to `conversation_history` after each successful response
+7. On any agent error: post `⚠️ [Agent] hit an error.` to WhatsApp, always return HTTP 200
 
 ## Arc 1 Definition of Done
 - [ ] WhatsApp message received by Docker container from phone over Tailscale
@@ -224,13 +236,12 @@ WhatsApp echo bot is confirmed working:
 ~~Python 3.11, bound to 127.0.0.1, mounts ~/fitcrew-workspace to /data,~~
 ~~reads ANTHROPIC_API_KEY from env, entrypoint: python service.py.~~
 
-## Jorge's Context (for onboarding and seeding)
-- Has ~1 year of upper body lift logs from ChatGPT Strength agent — to be parsed into
-  `strength_sessions` rows when ready (bring the export here first for cleaning)
-- No leg tracking currently
-- ChatGPT exports (Strength, Running, Nutrition) to be run before onboarding and used
-  to seed `*_summary` tables — do not run onboard.py cold
-- Strength summary will be seeded manually via SQLite after onboarding script runs
+## Jorge's Context
+- No leg tracking
+- ChatGPT exports (Strength, Running, Nutrition) all seeded into `*_summary` tables
+- `strength_sessions` seeded from ~1 year of ChatGPT export (531 rows, Apr 2025–Mar 2026)
+- `shared_context` seeded: lean bulk phase, goal 175 lb, 75.3 kg, active left elbow injury
+- `nutrition_summary` seeded from ChatGPT Nutrition export (Jan 2026)
 
 ## Arc 2 Task List (Claude Code Delegation)
 See `docs/dev_arc2.md` for full task prompts. Complete in order after Running export is seeded.
@@ -274,7 +285,7 @@ in `.env` is now the permanent token. No daily refresh needed.
 - Write data files to anywhere other than the path in `DB_PATH` env var
 - Expose Docker ports beyond 127.0.0.1
 - Modify the SQLite schema without being explicitly asked
-- Implement Arc 2/3 features unless the task explicitly says so
+- Implement Arc 4 features unless the task explicitly says so
 - Use threads — this project uses asyncio throughout
 - Insert a second row into shared_context — it is always UPDATE WHERE id=1
 - Include the memory JSON block in the WhatsApp response Jorge sees
