@@ -28,7 +28,7 @@ def get_recent_sessions(limit: int = 20) -> list[dict]:
     conn = _connect()
     cur = conn.cursor()
     cur.execute(
-        "SELECT date, exercise, sets, reps, load_kg, rpe, notes "
+        "SELECT date, exercise, sets, reps, load_lbs, rpe, notes "
         "FROM strength_sessions ORDER BY date DESC, id DESC LIMIT ?",
         (limit,),
     )
@@ -161,7 +161,7 @@ def get_cross_domain_load() -> str:
         """
         SELECT STRFTIME('%Y-W%W', date) AS week,
                COUNT(*) AS total_sets,
-               ROUND(AVG(load_kg), 1) AS avg_load_kg
+               ROUND(AVG(load_lbs), 1) AS avg_load_lbs
         FROM strength_sessions
         WHERE date >= DATE('now', '-28 days')
         GROUP BY week ORDER BY week DESC
@@ -183,7 +183,7 @@ def get_cross_domain_load() -> str:
     conn.close()
 
     if strength_rows:
-        lines = [f"  {r['week']}: {r['total_sets']} sets, avg load {r['avg_load_kg']} kg" for r in strength_rows]
+        lines = [f"  {r['week']}: {r['total_sets']} sets, avg load {r['avg_load_lbs']} lbs" for r in strength_rows]
         strength_block = "STRENGTH_LOAD (last 4 weeks):\n" + "\n".join(lines)
     else:
         strength_block = "STRENGTH_LOAD: No sessions logged in the past 4 weeks."

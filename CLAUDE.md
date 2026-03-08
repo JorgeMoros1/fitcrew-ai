@@ -1,12 +1,12 @@
 # FitCrew AI — Claude Code Context
 
 ## Current Status
-**Last completed:** Arc 3 Day 1-2 complete. Nutrition agent live — @nutrition returns real
-Claude responses grounded in nutrition summary, cross-domain training load, and conversation
-history. Error handling overhauled (always 200, dedup guard, error messages posted to WhatsApp).
-Nutrition seed SQL run against live DB.
-**Next step:** Arc 3 Day 2-3 — Task D (weekly summarizer cron) + Task F (cost logging).
-**Blocked on:** Nothing. Test @nutrition from phone to confirm end-to-end.
+**Last completed:** Arc 3 fully complete. All tasks done: Nutrition agent live (A/B/C),
+weekly summarizer cron (D), schema migration load_kg→load_lbs (E), cost logging (F),
+error handling overhaul + dedup guard (G), CLAUDE.md + deploy ritual (H).
+**Next step:** Arc 4 — agent consultation (cross-domain synthesis). See `docs/dev_arc3.md`
+for Arc 4 preview.
+**Blocked on:** Nothing.
 
 ## Known Issues
 None.
@@ -19,9 +19,9 @@ WhatsApp-native multi-agent fitness coaching system. Three Claude-powered agents
 Hetzner VPS in Docker behind Caddy + HTTPS. Single user (Jorge).
 
 ## Current Arc
-**Arc 3 — Nutrition agent.**
-Do not implement Arc 3 features unless the task explicitly says so.
-Reference: `docs/dev_arc3.md` for full task breakdown and sequencing (when created).
+**Arc 3 — Complete.**
+**Next arc:** Arc 4 — agent consultation (cross-domain synthesis). Do not implement Arc 4
+features unless the task explicitly says so. See `docs/dev_arc3.md` for Arc 4 preview.
 
 ## Repo Structure
 ```
@@ -37,31 +37,31 @@ fitcrew-ai/
 ├── agents/
 │   ├── strength.py              ← Arc 1: live
 │   ├── running.py               ← Arc 2: live
-│   └── nutrition.py             ← Arc 3: stub only
+│   └── nutrition.py             ← Arc 3: live
 ├── router/
 │   ├── classifier.py            ← Arc 2: live
 │   └── mention.py               ← Arc 2: live
 ├── memory/
-│   ├── reader.py                ← Arc 1: live
-│   ├── writer.py                ← Arc 1: live
-│   ├── run_extractor.py         ← Arc 2: live (NLP sub-call for run logs)
-│   └── summarizer.py            ← Arc 3: stub only
+│   ├── reader.py                ← Arc 1: live (nutrition reads + cross-domain load added Arc 3)
+│   ├── writer.py                ← Arc 1: live (nutrition log write added Arc 3)
+│   └── run_extractor.py         ← Arc 2: live (NLP sub-call for run logs)
+├── cron/
+│   ├── summarizer.py            ← Arc 3: live (weekly cron, APScheduler, Sunday 23:00 UTC)
+│   ├── cost_logger.py           ← Arc 3: live (CSV cost log per API call)
+│   └── cost_report.py           ← Arc 3: live (monthly cost summary CLI)
 ├── db/
 │   ├── init_db.py               ← Arc 1: live
-│   └── schema.sql               ← reference only
-├── bridge/
-│   ├── receiver.py              ← swap this for Business API later
-│   └── sender.py                ← swap this for Business API later
+│   ├── migrate_load_column.py   ← Arc 3: one-time migration (already run)
+│   └── seed_nutrition.sql       ← Arc 3: one-time seed (already run)
 ├── onboarding/
 │   └── onboard.py               ← Arc 1: live
 ├── scripts/
 │   └── export_context.py        ← debugging utility
 └── prompts/
-    ├── strength_system.md        ← populated
-    ├── running_system.md         ← Arc 2
-    ├── nutrition_system.md       ← Arc 3
-    ├── router_system.md          ← Arc 2
-    └── summarizer_system.md      ← Arc 3
+    ├── strength_system.md        ← Arc 1: live
+    ├── running_system.md         ← Arc 2: live
+    ├── nutrition_system.md       ← Arc 3: live
+    └── router_system.md          ← Arc 2: live
 ```
 
 ## Key Technical Decisions
@@ -81,17 +81,40 @@ fitcrew-ai/
 **HTTPS:** Caddy reverse proxy (auto cert via DuckDNS)
 **Token:** Permanent System User token in `.env` — no daily refresh needed
 
-**To deploy changes:**
+**Deploy ritual (run after every code push):**
 ```
+# 1. From Mac:
 git push
+
+# 2. On server:
 ssh root@178.156.243.64
-cd fitcrew-ai && git pull && docker-compose up --build -d
+cd fitcrew-ai && git pull && docker-compose down && docker-compose up --build -d
+
+# 3. Run DB init (safe every time — CREATE IF NOT EXISTS):
+docker-compose exec fitcrew python db/init_db.py
+
+# 4. Re-verify webhook (Meta dashboard → WhatsApp → Configuration → Verify and Save)
+#    Only needed if the container was down long enough for Meta to mark it stale.
+
+# 5. Send a test message from phone, confirm response.
 ```
 
 **To view logs:**
 ```
 ssh root@178.156.243.64
 cd fitcrew-ai && docker-compose logs -f
+```
+
+**Useful one-liners:**
+```
+# Monthly cost report:
+docker-compose exec fitcrew python cron/cost_report.py
+
+# Run summarizer manually:
+docker-compose exec fitcrew python cron/summarizer.py
+
+# Restore DB backup (replace timestamp):
+cp ~/fitcrew-workspace/fitcrew.db.bak-YYYYMMDDHHMMSS ~/fitcrew-workspace/fitcrew.db
 ```
 
 ## Environment Variables
@@ -110,7 +133,7 @@ Single SQLite file at `~/fitcrew-workspace/fitcrew.db` (maps to `/data/fitcrew.d
 
 **9 tables (Arc 2 adds conversation_history):**
 ```
-strength_sessions     — date, exercise, sets, reps, load_kg, rpe, notes
+strength_sessions     — date, exercise, sets, reps, load_lbs, rpe, notes
 strength_injuries     — date_onset, body_part, affected_movements, severity (1-5), status (active/resolved)
 strength_summary      — content (text), updated_at
 run_logs              — date, distance_km, duration_min, avg_hr, max_hr, pain_flag, pain_body_part, pain_level, notes

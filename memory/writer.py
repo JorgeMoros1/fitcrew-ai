@@ -12,7 +12,7 @@ SHARED_CONTEXT_FIELDS = {
 
 # Canonical column sets per table — any key not in this set is dropped before INSERT
 TABLE_COLUMNS: dict[str, set[str]] = {
-    "strength_sessions": {"date", "exercise", "sets", "reps", "load_kg", "rpe", "notes"},
+    "strength_sessions": {"date", "exercise", "sets", "reps", "load_lbs", "rpe", "notes"},
     "strength_injuries": {"date_onset", "body_part", "affected_movements", "severity", "status"},
     "run_logs": {"date", "distance_km", "duration_min", "avg_hr", "max_hr", "pain_flag", "pain_body_part", "pain_level", "notes"},
     "nutrition_log": {"date", "body_weight_kg", "physique_notes", "calorie_target", "macro_split", "phase", "emotional_flags"},
@@ -54,12 +54,10 @@ def _insert_row(table: str, data) -> None:
             if not isinstance(row, dict) or not row:
                 logging.warning("_insert_row: skipping non-dict row: %r", row)
                 continue
-            # Map common model-invented aliases to canonical column names
-            for alias, canonical in (
-                ("load_lbs", "load_kg"), ("weight", "load_kg"), ("weight_kg", "load_kg"),
-            ):
-                if alias in row and canonical not in row:
-                    row[canonical] = row.pop(alias)
+            # Map common model-invented aliases to canonical column name
+            for alias in ("load_kg", "weight", "weight_kg"):
+                if alias in row and "load_lbs" not in row:
+                    row["load_lbs"] = row.pop(alias)
                 elif alias in row:
                     del row[alias]
             # Map any reps_* variant (reps_by_set, reps_per_set, etc.) to reps
