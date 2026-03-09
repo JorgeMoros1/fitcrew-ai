@@ -1,6 +1,6 @@
 import re
 
-_MENTION_RE = re.compile(r"^@(strength|running|nutrition|all)\s+", re.IGNORECASE)
+_MENTION_RE = re.compile(r"^@(strength|running|nutrition|all|coach)\s+", re.IGNORECASE)
 
 
 def check_mention(message: str) -> tuple[str | None, str]:

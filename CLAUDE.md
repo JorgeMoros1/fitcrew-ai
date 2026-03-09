@@ -1,10 +1,8 @@
 # FitCrew AI — Claude Code Context
 
 ## Current Status
-**Last completed:** @all mention routing (fans out to all three agents) + auto date injection
-into all agent system prompts (TODAY field in each prompt context block).
-**Next step:** Arc 4 — agent consultation (cross-domain synthesis). See `docs/dev_arc3.md`
-for Arc 4 preview.
+**Last completed:** Arc 4 — `@coach` consultation path. All three agents assess in parallel (Haiku), Sonnet synthesizes into one unified 🤖 FitCrew: response. Three new assessment prompts. Assessment calls skip conversation history and memory writes.
+**Next step:** Deploy and test from phone. Send "should I run or lift tomorrow?" — expect 🤖 FitCrew: prefix and data-grounded unified response.
 **Blocked on:** Nothing.
 
 ## Known Issues
@@ -18,9 +16,8 @@ WhatsApp-native multi-agent fitness coaching system. Three Claude-powered agents
 Hetzner VPS in Docker behind Caddy + HTTPS. Single user (Jorge).
 
 ## Current Arc
-**Arc 3 — Complete.**
-**Next arc:** Arc 4 — agent consultation (cross-domain synthesis). Do not implement Arc 4
-features unless the task explicitly says so. See `docs/dev_arc3.md` for Arc 4 preview.
+**Arc 4 — Complete.**
+**Next arc:** Arc 5. See `docs/dev_arc5.md`. Do not implement Arc 5 features unless the task explicitly says so.
 
 ## Repo Structure
 ```
@@ -188,6 +185,8 @@ Template variables used in prompts:
    - `@strength` → Strength agent
    - `@running` → Running agent
    - `@nutrition` → Nutrition agent
+   - `@coach` → Consultation path (bypasses classifier entirely)
+3a. If `@coach` → `_handle_consultation()` in service.py: all three agents assess in parallel (Haiku, assessment mode), Sonnet synthesizes, post 🤖 FitCrew: response. No memory writes.
 4. If no @ mention → `router/classifier.py` → `classify_message(message)` (Haiku call)
    - Returns `{"agents": ["strength"|"running"|...]}` — fan out in parallel via `asyncio.gather`
    - Empty agents list → drop silently, no response
