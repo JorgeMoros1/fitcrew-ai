@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import re
@@ -39,6 +40,7 @@ async def call_running_agent(message: str) -> str:
     history = get_conversation_history("running", limit=30)
 
     substitutions = {
+        "{date}": datetime.date.today().isoformat(),
         "{summary}": summary or "No run summary yet.",
         "{history}": history or "No conversation history yet.",
         "{run_logs}": json.dumps(run_logs, indent=2) if run_logs else "No recent run logs.",

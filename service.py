@@ -214,7 +214,11 @@ async def handle_message(sender: str, text: str) -> None:
     # @ mention pre-check — skip classifier if direct tag found
     agent_name, clean_text = check_mention(text)
 
-    if agent_name in ("strength", "running", "nutrition"):
+    if agent_name == "all":
+        agents_to_call = ["strength", "running", "nutrition"]
+        msg = clean_text
+        log.info("@ MENTION: @all | msg=%r", msg)
+    elif agent_name in ("strength", "running", "nutrition"):
         agents_to_call = [agent_name]
         msg = clean_text
         log.info("@ MENTION: @%s | msg=%r", agent_name, msg)

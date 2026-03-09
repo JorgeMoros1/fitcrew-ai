@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import re
@@ -43,6 +44,7 @@ async def call_strength_agent(message: str) -> str:
     history = get_conversation_history("strength", limit=30)
 
     substitutions = {
+        "{date}": datetime.date.today().isoformat(),
         "{summary}": summary or "No summary available.",
         "{history}": history or "No conversation history yet.",
         "{sessions}": json.dumps(sessions, indent=2) if sessions else "No recent sessions.",

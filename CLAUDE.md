@@ -1,9 +1,8 @@
 # FitCrew AI — Claude Code Context
 
 ## Current Status
-**Last completed:** Arc 3 fully complete. All tasks done: Nutrition agent live (A/B/C),
-weekly summarizer cron (D), schema migration load_kg→load_lbs (E), cost logging (F),
-error handling overhaul + dedup guard (G), CLAUDE.md + deploy ritual (H).
+**Last completed:** @all mention routing (fans out to all three agents) + auto date injection
+into all agent system prompts (TODAY field in each prompt context block).
 **Next step:** Arc 4 — agent consultation (cross-domain synthesis). See `docs/dev_arc3.md`
 for Arc 4 preview.
 **Blocked on:** Nothing.
