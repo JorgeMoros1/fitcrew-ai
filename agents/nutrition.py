@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import re
@@ -49,6 +50,7 @@ async def call_nutrition_agent(message: str) -> str:
         run_load = "RUN_LOAD" + parts[1]
 
     substitutions = {
+        "{date}": datetime.date.today().isoformat(),
         "{summary}": summary or "No nutrition summary yet.",
         "{history}": history or "No conversation history yet.",
         "{nutrition_logs}": nutrition_logs,
