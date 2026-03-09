@@ -16,7 +16,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from agents.nutrition import call_nutrition_agent
 from agents.running import call_running_agent
 from agents.strength import call_strength_agent
-from agents.consultation import call_consultation_agent
+from agents.synthesizer import synthesize
 from memory.run_extractor import extract_run_log
 from memory.writer import (
     merge_active_injury,
@@ -208,15 +208,51 @@ async def _handle_running_memory(mem: dict, original_msg: str) -> None:
 
 async def _handle_consultation(sender: str, message: str) -> None:
     """
-    Consultation path: one Sonnet call with all three agents' context assembled.
-    Posts unified 🤖 FitCrew: response. No memory writes.
+    Consultation path: all three agents assess in parallel, Sonnet synthesizes,
+    one unified response posted with 🤖 FitCrew: prefix.
+    Assessment calls do not write memory or conversation history.
     """
-    log.info("CONSULTATION: message=%r", message[:50])
+    log.info("CONSULTATION: agents=all message=%r", message[:50])
     try:
-        response = await call_consultation_agent(message)
+        raw_assessments = await asyncio.gather(
+            call_strength_agent(message, mode="assessment"),
+            call_running_agent(message, mode="assessment"),
+            call_nutrition_agent(message, mode="assessment"),
+            return_exceptions=True,
+        )
     except Exception:
-        log.error("CONSULTATION ERROR:\n%s", traceback.format_exc())
+        log.error("CONSULTATION gather failed:\n%s", traceback.format_exc())
         post_to_whatsapp("⚠️ FitCrew consultation hit an error. Try again or check logs.", sender)
+        return
+
+    agent_names = ["strength", "running", "nutrition"]
+    assessments = {}
+    for agent, raw in zip(agent_names, raw_assessments):
+        if isinstance(raw, Exception):
+            log.error("ASSESSMENT ERROR [%s]: %s", agent, raw)
+            assessments[agent] = {
+                "recommendation": "Assessment unavailable.",
+                "data_points": [],
+                "constraints": [],
+                "confidence": "low",
+            }
+            continue
+        try:
+            assessments[agent] = json.loads(raw)
+        except json.JSONDecodeError:
+            log.warning("ASSESSMENT [%s]: JSON parse failed, using raw text", agent)
+            assessments[agent] = {
+                "recommendation": raw,
+                "data_points": [],
+                "constraints": [],
+                "confidence": "low",
+            }
+
+    try:
+        response = await synthesize(message, assessments)
+    except Exception:
+        log.error("SYNTHESIZER ERROR:\n%s", traceback.format_exc())
+        post_to_whatsapp("⚠️ FitCrew synthesis hit an error. Try again or check logs.", sender)
         return
 
     post_to_whatsapp(f"🤖 FitCrew: {response}", sender)
